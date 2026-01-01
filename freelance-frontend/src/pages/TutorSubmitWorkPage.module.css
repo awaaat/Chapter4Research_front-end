@@ -1,0 +1,201 @@
+/***********************************************
+ * TUTOR SUBMIT WORK PAGE - BEST PRACTICE CSS
+ * EXPLICIT CLASS NAMES - MAXIMUM MODULARITY
+ ***********************************************/
+
+/* THEME VARIABLES */
+:root {
+    --bg: #f7f8fa;
+    --card-bg: #ffffff;
+    --text: #1a1a1a;
+    --text-secondary: #555;
+    --border: #e5e7eb;
+
+    --primary: #107507;
+    --primary-hover: #27d817;
+
+    --success-bg: #d1fae5;
+    --success-text: #065f46;
+
+    --error-bg: #fee2e2;
+    --error-text: #7f1d1d;
+
+    --radius: 10px;
+    --shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+    --shadow-hover: 0 6px 22px rgba(0, 0, 0, 0.12);
+
+    --transition: 0.22s ease;
+}
+
+[data-theme="dark"] {
+    --bg: #111827;
+    --card-bg: #1f2937;
+    --text: #f3f4f6;
+    --text-secondary: #cfd3d8;
+    --border: #374151;
+
+    --shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+    --shadow-hover: 0 6px 22px rgba(0, 0, 0, 0.7);
+}
+
+/***********************************************
+ * CONTAINER
+ ***********************************************/
+.container {
+    max-width: 900px;
+    margin: 40px auto;
+    background: var(--card-bg);
+    padding: 40px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+.title {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 25px;
+    letter-spacing: -0.3px;
+}
+
+/***********************************************
+ * FORM
+ ***********************************************/
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.fieldGroup {
+    display: flex;
+    flex-direction: column;
+}
+
+.label {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 8px;
+}
+
+/***********************************************
+ * INPUT ELEMENTS
+ ***********************************************/
+.select {
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text);
+    font-size: 15px;
+    transition: var(--transition);
+    cursor: pointer;
+}
+
+.select:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22);
+    outline: none;
+}
+
+.textarea {
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text);
+    resize: vertical;
+    min-height: 150px;
+    font-size: 15px;
+    transition: var(--transition);
+    font-family: inherit;
+}
+
+.textarea:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22);
+    outline: none;
+}
+
+.fileInput {
+    padding: 10px 6px;
+    background: var(--card-bg);
+    color: var(--text);
+    border-radius: 6px;
+    font-size: 14px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+}
+
+.fileInput:hover {
+    border-color: var(--primary);
+}
+
+/***********************************************
+ * SUBMIT BUTTON
+ ***********************************************/
+.submitButton {
+    padding: 12px 20px;
+    background: var(--primary);
+    color: #fff;
+    font-weight: 600;
+    font-size: 16px;
+    border-radius: 8px;
+    border: none;
+    width: fit-content;
+    transition: var(--transition);
+    box-shadow: var(--shadow);
+    cursor: pointer;
+}
+
+.submitButton:hover:not(:disabled) {
+    background: var(--primary-hover);
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-1px);
+}
+
+.submitButton:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/***********************************************
+ * STATUS MESSAGES
+ ***********************************************/
+.successMessage {
+    padding: 12px;
+    font-size: 14px;
+    border-radius: 6px;
+    background: var(--success-bg);
+    color: var(--success-text);
+    margin-top: 10px;
+}
+
+.errorMessage {
+    padding: 12px;
+    font-size: 14px;
+    border-radius: 6px;
+    background: var(--error-bg);
+    color: var(--error-text);
+    margin-top: 10px;
+}
+
+/***********************************************
+ * RESPONSIVE DESIGN
+ ***********************************************/
+@media (max-width: 650px) {
+    .container {
+        padding: 22px;
+        margin: 20px;
+    }
+
+    .title {
+        font-size: 23px;
+    }
+
+    .submitButton {
+        width: 100%;
+        text-align: center;
+    }
+}
