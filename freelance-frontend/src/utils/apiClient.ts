@@ -9,7 +9,7 @@ interface FetchOptions extends RequestInit {
 class ApiClient {
     private baseURL: string;
 
-    constructor(baseURL: string = '') {
+    constructor(baseURL: string = import.meta.env.VITE_API_URL || '/api') {
         this.baseURL = baseURL;
     }
 
