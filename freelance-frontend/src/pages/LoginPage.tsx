@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import styles from "./LoginPage.module.css";
 
-const API_BASE = "${import.meta.env.VITE_API_URL.replace("/api", "")}";
+const API_BASE = import.meta.env.VITE_API_URL?.replace("/api", "") || "";
 
 const LoginPage = () => {
     const [email, setEmail] = useState("");
