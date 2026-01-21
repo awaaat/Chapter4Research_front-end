@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { apiClient } from '../utils/apiClient';
 import { Link, useNavigate } from 'react-router-dom';
 import styles from './MyProjectsPage.module.css';
 
@@ -94,10 +95,10 @@ const MyProjectsPage = () => {
         const load = async () => {
             const [projects, conversationsData, notificationsData] = await Promise.all([
                 fetchAll(`/api/projects/?tutor=${user.user_id}`),
-                fetch('/api/conversations/?tutor=' + user.user_id, {
+                apiClient.get('/conversations/?tutor=' + user.user_id, {
                     headers: { 'Authorization': 'Bearer ' + token }
                 }).then(res => res.json()),
-                fetch('/api/notifications/', {
+                apiClient.get('/notifications/', {
                     headers: { 'Authorization': 'Bearer ' + token }
                 }).then(res => res.json())
             ]);

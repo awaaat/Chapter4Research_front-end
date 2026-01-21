@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { apiClient } from '../utils/apiClient';
 import { useNavigate } from 'react-router-dom';
 import styles from './CalendarPage.module.css';
 
@@ -50,7 +51,7 @@ const CalendarPage = () => {
 
         const fetchData = async () => {
             try {
-                const projectsRes = await fetch('/api/projects/?tutor=' + user.user_id, {
+                const projectsRes = await apiClient.get('/projects/?tutor=' + user.user_id) {
                     headers: { Authorization: `Bearer ${token}` },
                 });
 

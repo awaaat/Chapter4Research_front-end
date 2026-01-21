@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { apiClient } from '../utils/apiClient';
 import { Link, useNavigate } from 'react-router-dom';
 import styles from './EvaluationReportsPage.module.css';
 
@@ -55,13 +56,13 @@ const EvaluationReportsPage = () => {
         const fetchData = async () => {
             try {
                 const [_reviewsRes, conversationsRes, notificationsRes] = await Promise.all([
-                    fetch('/api/reviews/?tutor=' + user.user_id, {
+                    apiClient.get('/reviews/?tutor=' + user.user_id, {
                         headers: { Authorization: `Bearer ${token}` },
                     }),
-                    fetch('/api/conversations/?tutor=' + user.user_id, {
+                    apiClient.get('/conversations/?tutor=' + user.user_id, {
                         headers: { Authorization: `Bearer ${token}` },
                     }),
-                    fetch('/api/notifications/', {
+                    apiClient.get('/notifications/', {
                         headers: { Authorization: `Bearer ${token}` },
                     })
                 ]);
