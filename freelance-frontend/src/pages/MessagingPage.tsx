@@ -1,10 +1,10 @@
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { apiClient } from '../utils/apiClient';
 import styles from './MessagingPage.module.css';
 type NodeJSTimeout = ReturnType<typeof setTimeout>;
-
 
 interface Conversation {
     conversation_id: string;
@@ -50,6 +50,7 @@ const MessagingPage = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const emojiPickerRef = useRef<HTMLDivElement>(null);
     const attachPopupRef = useRef<HTMLDivElement>(null);
+    const hasFetchedConvs = useRef(false);
 
     // Auth check
     useEffect(() => {
@@ -69,42 +70,46 @@ const MessagingPage = () => {
     }, [navigate]);
 
     // Fetch conversations
-    useEffect(() => {
-        if (!user) return;
-        const token = localStorage.getItem('access_token');
-        const fetchConvs = async () => {
-            try {
-                const res = await fetch('/api/conversations/', {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
-                if (!res.ok) {
-                    if (res.status === 404) {
-                        throw new Error('No conversations found');
-                    }
-                    throw new Error(`Failed to fetch conversations (status: ${res.status})`);
+    const fetchConvs = useCallback(async () => {
+        if (hasFetchedConvs.current || !user) return;
+        hasFetchedConvs.current = true;
+
+        try {
+            const res = await apiClient.get('/conversations/');
+
+            if (!res.ok) {
+                if (res.status === 404) {
+                    throw new Error('No conversations found');
                 }
-                const data = await res.json();
-                const convs = (data.results || []).map((c: any) => ({
-                    ...c,
-                    other_user: {
-                        username: user.role === 'client' ? c.tutor.username : c.client.username,
-                        avatar: '',
-                        online: Math.random() > 0.5,
-                    },
-                    last_message: c.last_message?.content || 'No messages yet',
-                }));
-                setConversations(convs);
-                const preSelect = convs.find((c: Conversation) => c.conversation_id === paramId);
-                if (preSelect) setSelectedConv(preSelect);
-            } catch (err: any) {
-                console.error('Fetch conversations error:', err);
-                setError(err.message || 'Failed to load conversations');
-            } finally {
-                setLoading(false);
+                throw new Error(`Failed to fetch conversations (status: ${res.status})`);
             }
-        };
-        fetchConvs();
+
+            const data = await res.json();
+            const convs = (data.results || []).map((c: any) => ({
+                ...c,
+                other_user: {
+                    username: user.role === 'client' ? c.tutor.username : c.client.username,
+                    avatar: '',
+                    online: Math.random() > 0.5,
+                },
+                last_message: c.last_message?.content || 'No messages yet',
+            }));
+            setConversations(convs);
+            const preSelect = convs.find((c: Conversation) => c.conversation_id === paramId);
+            if (preSelect) setSelectedConv(preSelect);
+        } catch (err: any) {
+            console.error('❌ Fetch conversations error:', err);
+            setError(err.message || 'Failed to load conversations');
+        } finally {
+            setLoading(false);
+        }
     }, [user, paramId]);
+
+    useEffect(() => {
+        if (user) {
+            fetchConvs();
+        }
+    }, [user, fetchConvs]);
 
     // Setup WS for selected conv
     useEffect(() => {
@@ -112,7 +117,7 @@ const MessagingPage = () => {
         const token = localStorage.getItem('access_token');
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const socket = new WebSocket(`${wsProtocol}//${window.location.host}/ws/chat/${selectedConv.conversation_id}/?token=${token}`);
-        socket.onopen = () => console.log('Chat WS connected');
+        socket.onopen = () => console.log('✅ Chat WS connected');
         socket.onmessage = (e) => {
             const data = JSON.parse(e.data);
             if (data.type === 'typing') {
@@ -136,7 +141,7 @@ const MessagingPage = () => {
                 setMessages((prev) => [...prev, newMsg]);
                 socket.send(JSON.stringify({ type: 'read', message_id: newMsg.message_id }));
 
-                // Mark as read in conversations list - reduce unread count
+                // Mark as read in conversations list
                 setConversations(prevConvs => prevConvs.map(conv =>
                     conv.conversation_id === selectedConv.conversation_id && !newMsg.isMine
                         ? { ...conv, unread_count: 0 }
@@ -156,18 +161,18 @@ const MessagingPage = () => {
     // Fetch messages for selected conv
     useEffect(() => {
         if (!selectedConv) return;
-        const token = localStorage.getItem('access_token');
+
         const fetchMsgs = async () => {
             try {
-                const res = await fetch(`/api/conversations/${selectedConv.conversation_id}/messages/`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
+                const res = await apiClient.get(`/conversations/${selectedConv.conversation_id}/messages/`);
+
                 if (!res.ok) {
                     if (res.status === 404) {
                         throw new Error('No messages in this conversation yet');
                     }
                     throw new Error(`Failed to fetch messages (status: ${res.status})`);
                 }
+
                 const data = await res.json();
                 const msgs = (data.results || []).map((msg: any) => ({
                     ...msg,
@@ -183,7 +188,7 @@ const MessagingPage = () => {
                         : conv
                 ));
             } catch (err: any) {
-                console.error('Fetch messages error:', err);
+                console.error('❌ Fetch messages error:', err);
                 setError(err.message || 'Failed to load messages');
             }
         };
@@ -220,7 +225,6 @@ const MessagingPage = () => {
 
     const sendMessage = async () => {
         if (!selectedConv || (!newMessage.trim() && !attachFile)) return;
-        const token = localStorage.getItem('access_token');
 
         // Optimistic update
         const tempId = Date.now().toString();
@@ -249,24 +253,15 @@ const MessagingPage = () => {
                 formData.append('sender', user.role.toUpperCase());
                 formData.append('attachment', attachFile);
                 if (user.role === 'tutor') formData.append('attachment_type', attachType || 'draft');
-                res = await fetch(`/api/conversations/${selectedConv.conversation_id}/messages/`, {
-                    method: 'POST',
-                    headers: { Authorization: `Bearer ${token}` },
-                    body: formData,
-                });
+
+                res = await apiClient.post(`/conversations/${selectedConv.conversation_id}/messages/`, formData);
             } else {
-                res = await fetch(`/api/conversations/${selectedConv.conversation_id}/messages/`, {
-                    method: 'POST',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        message_content: newMessage,
-                        sender: user.role.toUpperCase(),
-                    }),
+                res = await apiClient.post(`/conversations/${selectedConv.conversation_id}/messages/`, {
+                    message_content: newMessage,
+                    sender: user.role.toUpperCase(),
                 });
             }
+
             if (!res.ok) throw new Error(`Failed to send message (status: ${res.status})`);
             const data = await res.json();
             setMessages((prev) => prev.map(m => m.message_id === tempId ? {
@@ -277,13 +272,14 @@ const MessagingPage = () => {
                 filename: data.filename,
                 attachment_type: data.attachment_type
             } : m));
+
             if (selectedConv.other_user.online) {
                 setTimeout(() => {
                     setMessages((prev) => prev.map(m => m.message_id === data.message_id ? { ...m, status: 'read' } : m));
                 }, 2000);
             }
         } catch (err: any) {
-            console.error('Send message error:', err);
+            console.error('❌ Send message error:', err);
             setError(err.message || 'Failed to send message');
             setMessages((prev) => prev.filter(m => m.message_id !== tempId));
         }
@@ -315,7 +311,6 @@ const MessagingPage = () => {
         conv.project.title.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    // Calculate total unread count
     if (loading) return <div className={styles.loading}>Loading conversations...</div>;
     if (error) return <div className={styles.error}>{error}</div>;
 

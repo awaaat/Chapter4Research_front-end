@@ -1,8 +1,7 @@
-// ============================================
-// NotificationsPage.tsx - DUPLICATE FIX
-// ============================================
-import { useEffect, useRef, useState } from 'react';
+// NotificationsPage.tsx - FIXED VERSION
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { apiClient } from '../utils/apiClient';
 import styles from './NotificationsPage.module.css';
 
 interface Notification {
@@ -27,6 +26,7 @@ const NotificationsPage = () => {
     // Track processed notification IDs to prevent duplicates
     const processedIds = useRef(new Set<string>());
     const wsRef = useRef<WebSocket | null>(null);
+    const hasFetched = useRef(false);
 
     // Auth check
     useEffect(() => {
@@ -46,63 +46,59 @@ const NotificationsPage = () => {
     }, [navigate]);
 
     // Fetch notifications and message counts
+    const fetchData = useCallback(async () => {
+        if (hasFetched.current || !user) return;
+        hasFetched.current = true;
+
+        try {
+            const [notifRes, convRes] = await Promise.all([
+                apiClient.get('/notifications/'),
+                apiClient.get('/conversations/')
+            ]);
+
+            if (!notifRes.ok) throw new Error('Failed to load notifications');
+            const notifData = await notifRes.json();
+
+            const fetchedNotifications = notifData.results || [];
+            setNotifications(fetchedNotifications);
+
+            // Initialize processed IDs with fetched notifications
+            fetchedNotifications.forEach((n: Notification) => {
+                processedIds.current.add(n.id);
+            });
+
+            // Update alerts count
+            const unread = fetchedNotifications.filter((n: Notification) => !n.read).length;
+            setAlertsCount(unread);
+
+            // Count unread messages
+            if (convRes.ok) {
+                const convData = await convRes.json();
+                const unreadMessages = (convData.results || []).reduce((sum: number, conv: any) =>
+                    sum + (conv.unread_count || 0), 0
+                );
+                setInboxCount(unreadMessages);
+            }
+        } catch (err: any) {
+            console.error('❌ Fetch error:', err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    }, [user]);
+
+    useEffect(() => {
+        if (user) {
+            fetchData();
+        }
+    }, [user, fetchData]);
+
+    // WebSocket setup
     useEffect(() => {
         if (!user) return;
 
         const token = localStorage.getItem('access_token');
         if (!token) return;
-
-        let isActive = true;
-
-        const fetchData = async () => {
-            try {
-                const [notifRes, convRes] = await Promise.all([
-                    fetch('/api/notifications/', {
-                        headers: { Authorization: `Bearer ${token}` },
-                    }),
-                    fetch('/api/conversations/', {
-                        headers: { Authorization: `Bearer ${token}` },
-                    })
-                ]);
-
-                if (!notifRes.ok) throw new Error('Failed to load notifications');
-                const notifData = await notifRes.json();
-
-                if (isActive) {
-                    const fetchedNotifications = notifData.results || [];
-                    setNotifications(fetchedNotifications);
-
-                    // Initialize processed IDs with fetched notifications
-                    fetchedNotifications.forEach((n: Notification) => {
-                        processedIds.current.add(n.id);
-                    });
-
-                    // Update alerts count
-                    const unread = fetchedNotifications.filter((n: Notification) => !n.read).length;
-                    setAlertsCount(unread);
-                }
-
-                // Count unread messages
-                if (convRes.ok) {
-                    const convData = await convRes.json();
-                    const unreadMessages = (convData.results || []).reduce((sum: number, conv: any) =>
-                        sum + (conv.unread_count || 0), 0
-                    );
-                    if (isActive) {
-                        setInboxCount(unreadMessages);
-                    }
-                }
-            } catch (err: any) {
-                if (isActive) {
-                    setError(err.message);
-                }
-            } finally {
-                if (isActive) {
-                    setLoading(false);
-                }
-            }
-        };
-        fetchData();
 
         // Close existing WebSocket if any
         if (wsRef.current) {
@@ -115,11 +111,9 @@ const NotificationsPage = () => {
         const socket = new WebSocket(`${wsProtocol}//${window.location.host}/ws/notifications/?token=${token}`);
         wsRef.current = socket;
 
-        socket.onopen = () => console.log('Notifications WS connected');
+        socket.onopen = () => console.log('✅ Notifications WS connected');
 
         socket.onmessage = (e) => {
-            if (!isActive) return;
-
             try {
                 const data = JSON.parse(e.data);
                 if (data.notification) {
@@ -127,7 +121,7 @@ const NotificationsPage = () => {
 
                     // Check if already processed
                     if (processedIds.current.has(notificationId)) {
-                        console.log('Duplicate notification blocked (already processed):', notificationId);
+                        console.log('Duplicate notification blocked:', notificationId);
                         return;
                     }
 
@@ -136,7 +130,6 @@ const NotificationsPage = () => {
 
                     // Add to state
                     setNotifications((prev) => {
-                        // Double-check it's not in the array
                         const exists = prev.some(n => n.id === notificationId);
                         if (exists) {
                             console.log('Duplicate notification blocked (in array):', notificationId);
@@ -159,7 +152,6 @@ const NotificationsPage = () => {
         socket.onerror = (err) => console.error('Notifications WS error:', err);
 
         return () => {
-            isActive = false;
             if (wsRef.current) {
                 wsRef.current.close();
                 wsRef.current = null;
@@ -168,16 +160,11 @@ const NotificationsPage = () => {
     }, [user]);
 
     const markAsRead = async (id: string, link?: string) => {
-        const token = localStorage.getItem('access_token');
         try {
-            const res = await fetch(`/api/notifications/${id}/`, {
-                method: 'PATCH',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ read: true }),
+            const res = await apiClient.patch(`/notifications/${id}/`, {
+                read: true
             });
+
             if (res.ok) {
                 setNotifications((prev) =>
                     prev.map((n) => (n.id === id ? { ...n, read: true } : n))
@@ -191,7 +178,6 @@ const NotificationsPage = () => {
     };
 
     const markAllAsRead = async () => {
-        const token = localStorage.getItem('access_token');
         const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
 
         if (unreadIds.length === 0) return;
@@ -199,13 +185,8 @@ const NotificationsPage = () => {
         try {
             await Promise.all(
                 unreadIds.map(id =>
-                    fetch(`/api/notifications/${id}/`, {
-                        method: 'PATCH',
-                        headers: {
-                            Authorization: `Bearer ${token}`,
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ read: true }),
+                    apiClient.patch(`/notifications/${id}/`, {
+                        read: true
                     })
                 )
             );
@@ -217,16 +198,11 @@ const NotificationsPage = () => {
     };
 
     const deleteNotification = async (id: string) => {
-        const token = localStorage.getItem('access_token');
         const notif = notifications.find(n => n.id === id);
         try {
-            const res = await fetch(`/api/notifications/${id}/`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const res = await apiClient.delete(`/notifications/${id}/`);
             if (res.ok) {
                 setNotifications(prev => prev.filter(n => n.id !== id));
-                // Remove from processed IDs
                 processedIds.current.delete(id);
                 if (notif && !notif.read) {
                     setAlertsCount(prev => Math.max(0, prev - 1));
@@ -252,21 +228,21 @@ const NotificationsPage = () => {
         switch (type.toLowerCase()) {
             case 'new_project':
             case 'project_update':
-                return '';
+                return '📋';
             case 'bid_accepted':
             case 'bid_received':
             case 'bid':
-                return '';
+                return '💰';
             case 'message':
-                return '';
+                return '💬';
             case 'payment':
-                return '';
+                return '💳';
             case 'review':
-                return '';
+                return '⭐';
             case 'warning':
-                return '';
+                return '⚠️';
             default:
-                return '';
+                return '🔔';
         }
     };
 
@@ -401,7 +377,7 @@ const NotificationsPage = () => {
                 <div className={styles.list}>
                     {filteredNotifications.length === 0 ? (
                         <div className={styles.empty}>
-                            <div className={styles.emptyIcon}></div>
+                            <div className={styles.emptyIcon}>🔔</div>
                             <h2>No {filter === 'unread' ? 'unread ' : ''}notifications</h2>
                             <p>
                                 {filter === 'unread'

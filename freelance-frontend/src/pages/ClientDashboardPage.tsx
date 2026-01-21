@@ -1,7 +1,20 @@
-// src/pages/ClientDashboardPage.tsx
-import { useEffect, useState } from 'react';
+// src/pages/ClientDashboardPage.tsx - PRODUCTION-READY (FIXED VERSION)
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { apiClient } from '../utils/apiClient';
 import styles from './ClientDashboardPage.module.css';
+
+// ============================================================
+// TYPES
+// ============================================================
+interface User {
+    user_id: string;
+    username: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+    role: 'client';
+}
 
 interface DashboardMetrics {
     total_projects: number;
@@ -33,9 +46,8 @@ interface RecentActivity {
 }
 
 interface AttentionItem {
-    type: 'no_bids' | 'pending_completion' | 'overdue';
-    project_id: string;
-    title: string;
+    type: 'pending_completion' | 'overdue';
+    count: number;
     message: string;
 }
 
@@ -46,13 +58,20 @@ interface DashboardData {
     needs_attention: AttentionItem[];
 }
 
+// ============================================================
+// COMPONENT
+// ============================================================
 const ClientDashboardPage = () => {
+    const [user, setUser] = useState<User | null>(null);
     const [data, setData] = useState<DashboardData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [user, setUser] = useState<any>(null);
     const navigate = useNavigate();
+    const hasFetched = useRef(false);
 
+    // ============================================================
+    // AUTH CHECK
+    // ============================================================
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
         const token = localStorage.getItem('access_token');
@@ -63,7 +82,7 @@ const ClientDashboardPage = () => {
         }
 
         try {
-            const userData = JSON.parse(storedUser);
+            const userData = JSON.parse(storedUser) as User;
             if (userData.role !== 'client') {
                 navigate('/');
                 return;
@@ -75,46 +94,49 @@ const ClientDashboardPage = () => {
         }
     }, [navigate]);
 
-    useEffect(() => {
-        if (!user) return;
+    // ============================================================
+    // DASHBOARD FETCH
+    // ============================================================
+    const fetchDashboard = useCallback(async () => {
+        if (hasFetched.current) return;
+        hasFetched.current = true;
 
-        const token = localStorage.getItem('access_token');
-        if (!token) return;
+        setLoading(true);
+        setError(null);
 
-        const fetchDashboard = async () => {
-            setLoading(true);
-            setError(null);
+        try {
+            const response = await apiClient.get('/client/dashboard/');
 
-            try {
-                const response = await fetch('/api/client/dashboard/', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
-                });
-
-                if (!response.ok) {
-                    if (response.status === 401) {
-                        localStorage.clear();
-                        navigate('/login');
-                        return;
-                    }
-                    throw new Error(`Dashboard fetch failed: ${response.statusText}`);
+            if (!response.ok) {
+                if (response.status === 401) {
+                    localStorage.clear();
+                    navigate('/login');
+                    return;
                 }
-
-                const dashboardData = await response.json();
-                setData(dashboardData);
-            } catch (err) {
-                console.error('Dashboard error:', err);
-                setError('Failed to load dashboard. Please refresh the page.');
-            } finally {
-                setLoading(false);
+                throw new Error(`Dashboard fetch failed: ${response.statusText}`);
             }
-        };
 
-        fetchDashboard();
-    }, [user, navigate]);
+            const dashboardData = await response.json();
+            setData(dashboardData);
 
+            console.log('✅ Client dashboard loaded:', dashboardData);
+        } catch (err) {
+            console.error('❌ Dashboard error:', err);
+            setError('Failed to load dashboard. Please refresh the page.');
+        } finally {
+            setLoading(false);
+        }
+    }, [navigate]);
+
+    useEffect(() => {
+        if (user) {
+            fetchDashboard();
+        }
+    }, [user, fetchDashboard]);
+
+    // ============================================================
+    // HANDLERS
+    // ============================================================
     const handleLogout = () => {
         localStorage.clear();
         navigate('/login');
@@ -145,8 +167,6 @@ const ClientDashboardPage = () => {
 
     const getAttentionIcon = (type: string) => {
         switch (type) {
-            case 'no_bids':
-                return '⚠️';
             case 'pending_completion':
                 return '✅';
             case 'overdue':
@@ -156,6 +176,9 @@ const ClientDashboardPage = () => {
         }
     };
 
+    // ============================================================
+    // RENDER
+    // ============================================================
     if (loading) {
         return (
             <div className={styles.dashboardWrapper}>
@@ -179,6 +202,8 @@ const ClientDashboardPage = () => {
             </div>
         );
     }
+
+    if (!user) return null;
 
     const { metrics, wallet, recent_activity, needs_attention } = data;
 
@@ -227,7 +252,7 @@ const ClientDashboardPage = () => {
                         </div>
                         <Link to="/client/post-project">
                             <button className={styles.primaryButton}>
-                                <span className="material-symbols-rounded">Post New Project</span>
+                                Post New Project
                             </button>
                         </Link>
                     </div>
@@ -286,12 +311,8 @@ const ClientDashboardPage = () => {
                                         {getAttentionIcon(item.type)}
                                     </div>
                                     <div className={styles.attentionContent}>
-                                        <h3>{item.title}</h3>
                                         <p>{item.message}</p>
                                     </div>
-                                    <Link to={`/client/projects/${item.project_id}`}>
-                                        <button className={styles.actionButton}>View</button>
-                                    </Link>
                                 </div>
                             ))}
                         </div>

@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { apiClient } from '../utils/apiClient';
 import styles from './ProjectDetailPage.module.css';
 
 interface Attachment {
@@ -66,6 +67,7 @@ const TutorProjectDetailPage = () => {
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const navigate = useNavigate();
+    const hasFetched = useRef(false);
 
     // Toast notification system
     const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
@@ -121,69 +123,68 @@ const TutorProjectDetailPage = () => {
         }
     }, [navigate]);
 
-    useEffect(() => {
-        if (!user || !projectId) return;
-        const token = localStorage.getItem('access_token');
-        const loadProject = async () => {
-            try {
-                const res = await fetch(`/api/projects/${projectId}/`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
-                if (!res.ok) throw new Error('Failed to load project');
-                const data: any = await res.json();
+    const loadProject = useCallback(async () => {
+        if (hasFetched.current || !user || !projectId) return;
+        hasFetched.current = true;
 
-                let attachmentUrls = data.attachment_urls || [];
-                if (Array.isArray(attachmentUrls) && attachmentUrls.length > 0) {
-                    if (typeof attachmentUrls[0] === 'string') {
-                        attachmentUrls = attachmentUrls.map((url: string) => ({
-                            url,
-                            filename: decodeURIComponent(url.split('/').pop()?.split('?')[0] || 'file'),
-                        }));
-                    } else if (typeof attachmentUrls[0] === 'object' && attachmentUrls[0].url) {
-                        attachmentUrls = attachmentUrls.map((att: any) => ({
-                            url: att.url,
-                            filename: att.filename || decodeURIComponent(att.url.split('/').pop()?.split('?')[0] || 'file'),
-                        }));
-                    }
-                } else {
-                    attachmentUrls = [];
+        try {
+            const res = await apiClient.get(`/projects/${projectId}/`);
+
+            if (!res.ok) throw new Error('Failed to load project');
+            const data: any = await res.json();
+
+            let attachmentUrls = data.attachment_urls || [];
+            if (Array.isArray(attachmentUrls) && attachmentUrls.length > 0) {
+                if (typeof attachmentUrls[0] === 'string') {
+                    attachmentUrls = attachmentUrls.map((url: string) => ({
+                        url,
+                        filename: decodeURIComponent(url.split('/').pop()?.split('?')[0] || 'file'),
+                    }));
+                } else if (typeof attachmentUrls[0] === 'object' && attachmentUrls[0].url) {
+                    attachmentUrls = attachmentUrls.map((att: any) => ({
+                        url: att.url,
+                        filename: att.filename || decodeURIComponent(att.url.split('/').pop()?.split('?')[0] || 'file'),
+                    }));
                 }
-                data.attachment_urls = attachmentUrls;
-
-                setProject(data as Project);
-
-                const convRes = await fetch(`/api/conversations/?project_id=${projectId}`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
-                if (convRes.ok) {
-                    const convData = await convRes.json();
-                    if (convData.results && convData.results.length > 0) {
-                        setConversationId(convData.results[0].conversation_id);
-                    }
-                }
-            } catch (err) {
-                console.error('Error loading project:', err);
-                setError('Failed to load project. Please try again.');
-            } finally {
-                setLoading(false);
+            } else {
+                attachmentUrls = [];
             }
-        };
-        loadProject();
+            data.attachment_urls = attachmentUrls;
+
+            setProject(data as Project);
+
+            const convRes = await apiClient.get(`/conversations/?project_id=${projectId}`);
+            if (convRes.ok) {
+                const convData = await convRes.json();
+                if (convData.results && convData.results.length > 0) {
+                    setConversationId(convData.results[0].conversation_id);
+                }
+            }
+        } catch (err) {
+            console.error('❌ Error loading project:', err);
+            setError('Failed to load project. Please try again.');
+        } finally {
+            setLoading(false);
+        }
     }, [user, projectId]);
+
+    useEffect(() => {
+        if (user) {
+            loadProject();
+        }
+    }, [user, loadProject]);
 
     const loadMessages = async () => {
         if (!conversationId) return;
-        const token = localStorage.getItem('access_token');
+
         try {
-            const res = await fetch(`/api/conversations/${conversationId}/messages/`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const res = await apiClient.get(`/conversations/${conversationId}/messages/`);
             if (res.ok) {
                 const data = await res.json();
                 setMessages(data.results || []);
             }
         } catch (err) {
-            console.error('Error loading messages:', err);
+            console.error('❌ Error loading messages:', err);
         }
     };
 
@@ -195,26 +196,20 @@ const TutorProjectDetailPage = () => {
 
     const sendMessage = async () => {
         if (!conversationId || !newMessage.trim()) return;
-        const token = localStorage.getItem('access_token');
+
         try {
-            const res = await fetch(`/api/conversations/${conversationId}/messages/`, {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    message_content: newMessage,
-                    sender: 'TUTOR',
-                }),
+            const res = await apiClient.post(`/conversations/${conversationId}/messages/`, {
+                message_content: newMessage,
+                sender: 'TUTOR',
             });
+
             if (res.ok) {
                 setNewMessage('');
                 loadMessages();
                 showToast('Message sent!', 'success');
             }
         } catch (err) {
-            console.error('Error sending message:', err);
+            console.error('❌ Error sending message:', err);
             showToast('Failed to send message', 'error');
         }
     };
@@ -236,7 +231,6 @@ const TutorProjectDetailPage = () => {
             );
         }
 
-        // Add valid files (avoid duplicates by name)
         setSubmissionFiles(prev => {
             const existingNames = prev.map(f => f.name);
             const uniqueFiles = validFiles.filter(f => !existingNames.includes(f.name));
@@ -277,24 +271,16 @@ const TutorProjectDetailPage = () => {
             return;
         }
 
-        const token = localStorage.getItem('access_token');
-        if (!token) {
-            showToast('Authentication required. Please log in again.', 'error');
-            navigate('/login');
-            return;
-        }
-
         setIsUploading(true);
         setUploadProgress(0);
 
         const formData = new FormData();
 
-        // Append multiple files with 'files' key (backend expects this)
+        // Append multiple files
         submissionFiles.forEach(file => {
             formData.append('files', file);
         });
 
-        // Append other data
         formData.append('type', submissionType);
         if (submissionMessage.trim()) {
             formData.append('message', submissionMessage);
@@ -314,11 +300,7 @@ const TutorProjectDetailPage = () => {
                 });
             }, 200);
 
-            const res = await fetch(`/api/projects/${project.project_id}/submit/`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
-                body: formData,
-            });
+            const res = await apiClient.post(`/projects/${project.project_id}/submit/`, formData);
 
             clearInterval(progressInterval);
             setUploadProgress(100);
@@ -346,7 +328,7 @@ const TutorProjectDetailPage = () => {
             }, 2000);
 
         } catch (err) {
-            console.error('Submission error:', err);
+            console.error('❌ Submission error:', err);
             showToast(
                 err instanceof Error ? err.message : 'Failed to submit work. Please try again.',
                 'error'
@@ -359,12 +341,10 @@ const TutorProjectDetailPage = () => {
 
     const markAsDone = async () => {
         if (!project || project.tutor_marked_done) return;
-        const token = localStorage.getItem('access_token');
+
         try {
-            const res = await fetch(`/api/projects/${projectId}/mark-done/`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const res = await apiClient.post(`/projects/${projectId}/mark-done/`);
+
             if (!res.ok) {
                 const errData = await res.json();
                 throw new Error(errData.detail || 'Failed to mark as done');
