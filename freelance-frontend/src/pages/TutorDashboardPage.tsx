@@ -1,6 +1,7 @@
 // TutorDashboardPage.tsx - PRODUCTION-READY (FIXED VERSION)
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { apiClient } from '../utils/apiClient';
 import styles from './TutorDashboardPage.module.css';
 
 // ============================================================
@@ -42,7 +43,6 @@ interface Metrics {
     recentCompletions: number;
 }
 
-// ✅ NEW: Wallet data structure
 interface WalletData {
     balance: number;
     pending_balance: number;
@@ -72,8 +72,6 @@ const TutorDashboardPage = () => {
     const [awards, setAwards] = useState<Award[]>([]);
     const [alertsCount, setAlertsCount] = useState<number>(0);
     const [inboxCount, setInboxCount] = useState<number>(0);
-
-    // ✅ NEW: Wallet state
     const [walletData, setWalletData] = useState<WalletData>({
         balance: 0,
         pending_balance: 0,
@@ -85,12 +83,9 @@ const TutorDashboardPage = () => {
     const hasFetched = useRef(false);
 
     // ============================================================
-    // ✅ FETCH FRESH USER DATA (with profile picture)
+    // FETCH FRESH USER DATA
     // ============================================================
     const fetchUserData = useCallback(async () => {
-        const token = localStorage.getItem('access_token');
-        if (!token) return;
-
         try {
             const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
             const userId = storedUser.user_id;
@@ -99,50 +94,24 @@ const TutorDashboardPage = () => {
                 throw new Error('User ID not found');
             }
 
-            const res = await fetch(`/api/users/${userId}/`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!res.ok) {
-                throw new Error('Failed to fetch user data');
-            }
-
+            const res = await apiClient.get(`/users/${userId}/`);
             const freshUserData = await res.json();
 
-            // Update localStorage with fresh data
             localStorage.setItem('user', JSON.stringify(freshUserData));
-
             setUser(freshUserData);
 
             console.log('✅ User data refreshed:', freshUserData);
-
         } catch (err) {
             console.error('❌ Failed to fetch user data:', err);
         }
     }, []);
 
     // ============================================================
-    // ✅ FETCH WALLET DATA (correct balance)
+    // FETCH WALLET DATA
     // ============================================================
     const fetchWalletData = useCallback(async () => {
-        const token = localStorage.getItem('access_token');
-        if (!token) return;
-
         try {
-            const res = await fetch('/api/wallets/my-wallet/', {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!res.ok) {
-                throw new Error('Failed to fetch wallet data');
-            }
-
+            const res = await apiClient.get('/wallets/my-wallet/');
             const data = await res.json();
 
             setWalletData({
@@ -152,14 +121,13 @@ const TutorDashboardPage = () => {
             });
 
             console.log('✅ Wallet data fetched:', data);
-
         } catch (err) {
             console.error('❌ Failed to fetch wallet:', err);
         }
     }, []);
 
     // ============================================================
-    // AUTH CHECK (runs once)
+    // AUTH CHECK
     // ============================================================
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
@@ -184,30 +152,16 @@ const TutorDashboardPage = () => {
     }, [navigate]);
 
     // ============================================================
-    // DASHBOARD FETCH (runs ONCE)
+    // DASHBOARD FETCH
     // ============================================================
     const fetchDashboard = useCallback(async () => {
         if (hasFetched.current) return;
         hasFetched.current = true;
 
-        const token = localStorage.getItem('access_token');
-        if (!token) return;
-
         setLoading(true);
 
         try {
-            // Fetch dashboard
-            const res = await fetch('/api/tutor/dashboard/', {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!res.ok) {
-                throw new Error(`Failed to load dashboard`);
-            }
-
+            const res = await apiClient.get('/tutor/dashboard/');
             const data = await res.json();
 
             setMetrics(data.metrics);
@@ -215,12 +169,8 @@ const TutorDashboardPage = () => {
             setAlertsCount(data.counts.unread_notifications);
             setAwards(data.awards);
 
-            // ✅ Fetch fresh user data (profile picture)
             await fetchUserData();
-
-            // ✅ Fetch wallet data (correct balance)
             await fetchWalletData();
-
         } catch (err) {
             setError('Failed to load dashboard');
             console.error(err);
@@ -236,33 +186,28 @@ const TutorDashboardPage = () => {
     }, [user, fetchDashboard]);
 
     // ============================================================
-    // ✅ HELPER: Get Profile Picture URL
+    // HELPER: Get Profile Picture URL
     // ============================================================
     const getProfilePictureUrl = () => {
         if (!user) return '/images/default-helper-profile.jpg';
 
         if (user.profile_picture) {
-            // If it's already a full URL, use it
             if (user.profile_picture.startsWith('http')) {
                 return user.profile_picture;
             }
 
-            // ✅ FIX: Check if it's a preset avatar (frontend public folder)
             if (user.profile_picture.startsWith('/avatars/')) {
-                // These are in React's public folder, not Django media
                 return user.profile_picture;
             }
 
-            // ✅ Otherwise, it's an uploaded file in Django's media folder
             return `${import.meta.env.VITE_API_URL.replace("/api", "")}${user.profile_picture}`;
         }
 
-        // Default avatar
         return '/images/default-helper-profile.jpg';
     };
 
     // ============================================================
-    // ✅ HELPER: Generate Avatar Initials
+    // HELPER: Generate Avatar Initials
     // ============================================================
     const getAvatarInitials = () => {
         if (!user) return 'U';
@@ -397,7 +342,6 @@ const TutorDashboardPage = () => {
 
                 <header className={styles.profileHeader}>
                     <div className={styles.helperProfile}>
-                        {/* ✅ FIXED: Profile picture with fallback */}
                         <div className={styles.profilePictureWrapper}>
                             {user.profile_picture ? (
                                 <img
@@ -405,7 +349,6 @@ const TutorDashboardPage = () => {
                                     alt="Profile"
                                     className={styles.mainProfileImage}
                                     onError={(e) => {
-                                        // Fallback to initials avatar if image fails
                                         console.log('❌ Image failed to load, using avatar');
                                         e.currentTarget.style.display = 'none';
                                         const parent = e.currentTarget.parentElement;
@@ -477,7 +420,6 @@ const TutorDashboardPage = () => {
                         <Link to="/tutor/wallet"><button>View</button></Link>
                     </div>
                 </section>
-
 
                 <footer className={styles.bottomSection}>
                     <p>© 2025 MyHomeworkHelper</p>
