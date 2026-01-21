@@ -47,13 +47,10 @@ const CalendarPage = () => {
 
     useEffect(() => {
         if (!user) return;
-        const token = localStorage.getItem('access_token');
 
         const fetchData = async () => {
             try {
-                const projectsRes = await apiClient.get('/projects/?tutor=' + user.user_id) {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
+                const projectsRes = await apiClient.get('/projects/?tutor=' + user.user_id);
 
                 if (!projectsRes.ok) throw new Error('Failed to fetch projects');
                 const projectsData = await projectsRes.json();
