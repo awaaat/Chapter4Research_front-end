@@ -134,11 +134,8 @@ const ClientPostProjectPage = () => {
         files.forEach(file => {
             formData.append('attachments', file);
         });
-
         try {
-            const response = await apiClient.post('/projects/', {
-                body: formData,
-            });
+            const response = await apiClient.post('/projects/', formData);
 
             if (!response.ok) {
                 const errData = await response.json().catch(() => ({}));
