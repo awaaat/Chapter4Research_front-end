@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { apiClient } from '../utils/apiClient';
 import { Link, useNavigate } from 'react-router-dom';
 import styles from './ClientRegisterPage.module.css';
 
@@ -96,9 +97,9 @@ const RegisterPage = () => {
                 preferred_language: "English"
             };
 
-            const response = await fetch('/api/auth/client/register/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+            const response = await apiClient.post('/auth/client/register/', {
+                
+                
                 body: JSON.stringify(testPayload),
             });
 
@@ -153,9 +154,9 @@ const RegisterPage = () => {
         };
 
         try {
-            const response = await fetch('/api/auth/client/register/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+            const response = await apiClient.post('/auth/client/register/', {
+                
+                
                 body: JSON.stringify(payload),
             });
 
