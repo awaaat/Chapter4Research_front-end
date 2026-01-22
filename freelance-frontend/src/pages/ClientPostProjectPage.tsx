@@ -1,4 +1,5 @@
 // ============================================
+import { apiClient } from '../utils/apiClient';
 // ClientPostProjectPage.tsx - ENHANCED
 // Better error handling with wallet balance checks
 // ============================================
@@ -135,9 +136,7 @@ const ClientPostProjectPage = () => {
         });
 
         try {
-            const response = await fetch('/api/projects/', {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
+            const response = await apiClient.post('/projects/', {
                 body: formData,
             });
 
