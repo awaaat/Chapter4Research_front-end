@@ -21,7 +21,7 @@ class ApiClient {
 
         // Add authorization header if token exists
         const headers: Record<string, string> = {
-            'Content-Type': 'application/json',
+            ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
             ...options.headers,
         };
 
