@@ -83,7 +83,7 @@ const MyProjectsPage = () => {
             let all: any[] = [];
             let next = url;
             while (next) {
-                const res = await fetch(next, { headers: { Authorization: `Bearer ${token}` } });
+                const res = await apiClient.get(next.replace(/^.*\/api/, ""));
                 if (!res.ok) break;
                 const data = await res.json();
                 all = [...all, ...(data.results || [])];
