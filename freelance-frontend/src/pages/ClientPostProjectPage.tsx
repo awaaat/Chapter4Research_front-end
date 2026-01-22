@@ -42,7 +42,6 @@ const ClientPostProjectPage = () => {
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
     const navigate = useNavigate();
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const token = localStorage.getItem('access_token');
 
     const skillOptions = selectedCategory ? selectedCategory.skills.map(skill => ({ value: skill, label: skill })).concat({ value: 'Other', label: 'Other' }) : [];
     const isOtherSelected = selectedSkills.some(s => s.value === 'Other');
@@ -80,18 +79,11 @@ const ClientPostProjectPage = () => {
 
     const notifyTutors = async (projectData: any) => {
         try {
-            await fetch('/api/notifications/broadcast/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                    type: 'new_project',
-                    message: `New question posted: ${projectData.title}`,
-                    link: `/tutor/projects/${projectData.project_id}`,
-                    skills: selectedSkills.map(s => s.value),
-                }),
+            await apiClient.post('/notifications/broadcast/', {
+                type: 'new_project',
+                message: `New question posted: ${projectData.title}`,
+                link: `/tutor/projects/${projectData.project_id}`,
+                skills: selectedSkills.map(s => s.value),
             });
         } catch (err) {
             console.error('Failed to notify tutors:', err);

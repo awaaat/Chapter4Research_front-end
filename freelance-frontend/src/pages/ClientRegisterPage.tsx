@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { apiClient } from '../utils/apiClient';
 import { Link, useNavigate } from 'react-router-dom';
+import { apiClient } from '../utils/apiClient';
 import styles from './ClientRegisterPage.module.css';
 
 const RegisterPage = () => {
@@ -97,11 +97,7 @@ const RegisterPage = () => {
                 preferred_language: "English"
             };
 
-            const response = await apiClient.post('/auth/client/register/', {
-                
-                
-                body: JSON.stringify(testPayload),
-            });
+            const response = await apiClient.post('/auth/client/register/', testPayload);
 
             const data = await response.json();
 
@@ -154,11 +150,7 @@ const RegisterPage = () => {
         };
 
         try {
-            const response = await apiClient.post('/auth/client/register/', {
-                
-                
-                body: JSON.stringify(payload),
-            });
+            const response = await apiClient.post('/auth/client/register/', payload);
 
             const data = await response.json();
 
