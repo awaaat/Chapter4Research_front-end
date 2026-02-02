@@ -39,8 +39,31 @@ const RegisterPage = () => {
 
         if (!personalInfo.first_name.trim()) newErrors.first_name = ['First name is required'];
         if (!personalInfo.last_name.trim()) newErrors.last_name = ['Last name is required'];
-        if (!personalInfo.email.trim()) newErrors.email = ['Email is required'];
-        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(personalInfo.email)) newErrors.email = ['Invalid email format'];
+
+        if (!personalInfo.email.trim()) {
+            newErrors.email = ['Email is required'];
+        } else if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(personalInfo.email)) {
+            newErrors.email = ['Invalid email format'];
+        } else {
+            // Check for common typos
+            const email = personalInfo.email.toLowerCase();
+            const commonTypos = [
+                { wrong: '@gmail.co', right: '@gmail.com' },
+                { wrong: '@yahoo.co', right: '@yahoo.com' },
+                { wrong: '@hotmail.co', right: '@hotmail.com' },
+                { wrong: '@outlook.co', right: '@outlook.com' },
+                { wrong: '.comm', right: '.com' },
+                { wrong: '.nett', right: '.net' },
+            ];
+
+            for (const typo of commonTypos) {
+                if (email.includes(typo.wrong)) {
+                    newErrors.email = [`Did you mean ${email.replace(typo.wrong, typo.right)}?`];
+                    break;
+                }
+            }
+        }
+
         if (!personalInfo.phone.trim()) newErrors.phone = ['Phone number is required'];
         else if (!/^\+?[\d\s\-\(\)]{10,15}$/.test(personalInfo.phone)) newErrors.phone = ['Invalid phone number'];
         if (!personalInfo.country) newErrors.country = ['Please select your country'];

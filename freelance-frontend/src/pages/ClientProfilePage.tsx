@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { apiClient } from '../utils/apiClient';
 import styles from './ClientProfilePage.module.css';
 
 interface User {
@@ -133,15 +134,10 @@ const ClientProfilePage = () => {
             showToast('Password must be at least 8 characters', 'error');
             return;
         }
-        const token = localStorage.getItem('access_token');
         try {
-            const res = await fetch('/api/change-password/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+            const res = await apiClient.post('/change-password/', {
+                old_password: oldPassword,
+                new_password: newPassword
             });
             if (!res.ok) throw new Error('Failed to change password');
             setOldPassword('');
@@ -238,14 +234,8 @@ const ClientProfilePage = () => {
             showToast('Please type DELETE to confirm', 'error');
             return;
         }
-        const token = localStorage.getItem('access_token');
         try {
-            const res = await fetch(`/api/users/${user?.user_id}/`, {
-                method: 'DELETE',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
+            const res = await apiClient.delete(`/users/${user?.user_id}/`);
             if (!res.ok) throw new Error('Failed to delete account');
             localStorage.clear();
             showToast('Account deleted successfully', 'success');
@@ -272,28 +262,18 @@ const ClientProfilePage = () => {
     };
 
     const handleSaveAvatar = async () => {
-        const token = localStorage.getItem('access_token');
         try {
             let newAvatarUrl: string;
             if (avatarFile) {
                 const formData = new FormData();
                 formData.append('avatar', avatarFile);
-                const res = await fetch('/api/upload-avatar/', {
-                    method: 'POST',
-                    headers: { Authorization: `Bearer ${token}` },
-                    body: formData,
-                });
+                const res = await apiClient.post('/upload-avatar/', formData);
                 if (!res.ok) throw new Error('Failed to upload avatar');
                 const data = await res.json();
                 newAvatarUrl = data.avatar_url;
             } else if (selectedAvatar) {
-                const res = await fetch('/api/update-avatar/', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: JSON.stringify({ avatar: selectedAvatar }),
+                const res = await apiClient.post('/update-avatar/', {
+                    avatar: selectedAvatar
                 });
                 if (!res.ok) throw new Error('Failed to update avatar');
                 const data = await res.json();

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { apiClient } from '../utils/apiClient';
 import styles from './ProjectDetailPage.module.css';
 
 interface Bid {
@@ -150,7 +151,6 @@ const ProjectDetailPage = () => {
             const parsed = JSON.parse(storedUser);
             setUser(parsed);
         } catch {
-            localStorage.clear();
             navigate('/login');
         }
     }, [navigate]);
@@ -158,12 +158,9 @@ const ProjectDetailPage = () => {
     // === LOAD PROJECT ===
     useEffect(() => {
         if (!user || !projectId) return;
-        const token = localStorage.getItem('access_token');
         const loadProject = async () => {
             try {
-                const res = await fetch(`/api/projects/${projectId}/`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
+                const res = await apiClient.get(`/projects/${projectId}/`);
                 if (!res.ok) throw new Error('Failed to load project');
                 const data: any = await res.json();
 
@@ -196,9 +193,7 @@ const ProjectDetailPage = () => {
                 }
 
                 // Load conversation ID for messaging
-                const convRes = await fetch(`/api/conversations/?project_id=${projectId}`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
+                const convRes = await apiClient.get(`/conversations/?project_id=${projectId}`);
                 if (convRes.ok) {
                     const convData = await convRes.json();
                     if (convData.results && convData.results.length > 0) {
@@ -218,11 +213,8 @@ const ProjectDetailPage = () => {
     // === LOAD MESSAGES ===
     const loadMessages = async () => {
         if (!conversationId) return;
-        const token = localStorage.getItem('access_token');
         try {
-            const res = await fetch(`/api/conversations/${conversationId}/messages/`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const res = await apiClient.get(`/conversations/${conversationId}/messages/`);
             if (res.ok) {
                 const data = await res.json();
                 setMessages(data.results || []);
@@ -241,18 +233,10 @@ const ProjectDetailPage = () => {
     // === SEND MESSAGE ===
     const sendMessage = async () => {
         if (!conversationId || !newMessage.trim()) return;
-        const token = localStorage.getItem('access_token');
         try {
-            const res = await fetch(`/api/conversations/${conversationId}/messages/`, {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    message_content: newMessage,
-                    sender: user.role.toUpperCase(),
-                }),
+            const res = await apiClient.post(`/conversations/${conversationId}/messages/`, {
+                message_content: newMessage,
+                sender: user.role.toUpperCase(),
             });
             if (res.ok) {
                 setNewMessage('');
@@ -292,7 +276,6 @@ const ProjectDetailPage = () => {
             return;
         }
         if (!validateBid()) return;
-        const token = localStorage.getItem('access_token');
         const timeline = formatTimeline(
             parseInt(bidForm.timelineMonths) || 0,
             parseInt(bidForm.timelineDays) || 0,
@@ -305,14 +288,7 @@ const ProjectDetailPage = () => {
             bid_message: bidForm.bid_message,
         };
         try {
-            const res = await fetch(`/api/projects/${projectId}/bids/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify(payload),
-            });
+            const res = await apiClient.post(`/projects/${projectId}/bids/`, payload);
             if (!res.ok) throw new Error('Failed to submit bid');
             const newBid: Bid = await res.json();
             setProject(prev => prev ? { ...prev, bids: [...(prev.bids || []), newBid] } : null);
@@ -338,7 +314,6 @@ const ProjectDetailPage = () => {
             setError('Please select a file to upload.');
             return;
         }
-        const token = localStorage.getItem('access_token');
         const formData = new FormData();
         formData.append('file', completionFile);
         formData.append('submission_type', submissionType);
@@ -346,11 +321,7 @@ const ProjectDetailPage = () => {
             formData.append('message', completionMessage);
         }
         try {
-            const res = await fetch(`/api/projects/${projectId}/submissions/`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
-                body: formData,
-            });
+            const res = await apiClient.post(`/projects/${projectId}/submissions/`, formData);
             if (!res.ok) throw new Error('Failed to submit work');
 
             // SUCCESS - DO NOT NAVIGATE, just refresh data
@@ -359,9 +330,7 @@ const ProjectDetailPage = () => {
             setCompletionMessage('');
 
             // Refresh project data to show new submission
-            const refreshRes = await fetch(`/api/projects/${projectId}/`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const refreshRes = await apiClient.get(`/projects/${projectId}/`);
             if (refreshRes.ok) {
                 const data = await refreshRes.json();
                 let attachmentUrls = data.attachment_urls || [];
@@ -384,12 +353,8 @@ const ProjectDetailPage = () => {
     // === MARK AS DONE (IRREVERSIBLE) ===
     const markAsDone = async () => {
         if (!project || project.tutor_marked_done) return;
-        const token = localStorage.getItem('access_token');
         try {
-            const res = await fetch(`/api/projects/${projectId}/mark-done/`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const res = await apiClient.post(`/projects/${projectId}/mark-done/`, {});
             if (!res.ok) {
                 const errData = await res.json();
                 throw new Error(errData.detail || 'Failed to mark as done');
@@ -405,12 +370,8 @@ const ProjectDetailPage = () => {
 
     // === COMPLETE PROJECT (CLIENT) ===
     const completeProject = async () => {
-        const token = localStorage.getItem('access_token');
         try {
-            const res = await fetch(`/api/projects/${projectId}/complete/`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const res = await apiClient.post(`/projects/${projectId}/complete/`, {});
             if (!res.ok) throw new Error('Failed to complete project');
             showToast('✓ Project completed successfully!', 'success');
             setTimeout(() => window.location.reload(), 1500);
@@ -421,12 +382,8 @@ const ProjectDetailPage = () => {
 
     const confirmDeleteBid = async () => {
         if (!bidToDelete) return;
-        const token = localStorage.getItem('access_token');
         try {
-            const res = await fetch(`/api/projects/${projectId}/bids/${bidToDelete}/`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const res = await apiClient.delete(`/projects/${projectId}/bids/${bidToDelete}/`);
             if (res.ok) {
                 setProject(prev => prev ? { ...prev, bids: prev.bids.filter(b => b.bid_id !== bidToDelete) } : null);
                 setHasBid(false);
@@ -442,15 +399,9 @@ const ProjectDetailPage = () => {
 
     const assignTutor = async () => {
         if (!selectedBid) return;
-        const token = localStorage.getItem('access_token');
         try {
-            const res = await fetch(`/api/projects/${projectId}/assign/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ bid_id: selectedBid }),
+            const res = await apiClient.post(`/projects/${projectId}/assign/`, {
+                bid_id: selectedBid
             });
             if (!res.ok) throw new Error();
             showToast('✓ Tutor assigned successfully!', 'success');

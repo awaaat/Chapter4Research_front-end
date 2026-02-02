@@ -1,11 +1,11 @@
 // ============================================
-import { apiClient } from '../utils/apiClient';
 // ClientPostProjectPage.tsx - ENHANCED
 // Better error handling with wallet balance checks
 // ============================================
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Select from 'react-select';
+import { apiClient } from '../utils/apiClient';
 import styles from './ClientPostProjectPage.module.css';
 
 const subjects = [
